@@ -20,14 +20,15 @@ namespace Player.System.Movement
         Transform DesiredDirectionTransform;
 
         [Header("Movement Settings")]
-        [SerializeField] float Speed;
-        [SerializeField] float JumpForce;
+        [SerializeField] float Speed = 3.5f;
+        [SerializeField] float JumpForce = 1f;
         [Space]
         [SerializeField] Vector2 m_wallCheck = new Vector2(0.1f, 0.2f);
-        [SerializeField] float MinVelocityDistance;
-        [SerializeField] float WaitTimeForJump;
+        [SerializeField] float MinVelocityDistance = 0.35f;
+        [SerializeField] float WaitTimeForJump = 0.35f;
         [Space]
         [SerializeField] LayerMask GroundLayers;
+        [Space]
 
         bool edg;
         private float SpeedMultiply = 0f;
@@ -118,7 +119,8 @@ namespace Player.System.Movement
         void PlayerGeneralMovement()
         {
             #region Player Movement
-            if (mPhotonView.IsMine) mCharacterController.Move(transform.forward * Speed * SpeedMultiply * Time.fixedDeltaTime);
+            CurrentPlayerMovement = transform.forward * Speed * SpeedMultiply * Time.fixedDeltaTime;
+            if (mPhotonView.IsMine) mCharacterController.Move(CurrentPlayerMovement);
 
             PlayerGravity.y += Gravity * Time.fixedDeltaTime;
             if (mPhotonView.IsMine) mCharacterController.Move(PlayerGravity * Time.fixedDeltaTime);
@@ -132,7 +134,7 @@ namespace Player.System.Movement
             if (PlayerGravity.y > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0)
                 PlayerGravity = Vector3.zero;
 
-            PlayerGravity.y = Mathf.Clamp(PlayerGravity.y, -20f, 20f);
+            PlayerGravity.y = Mathf.Clamp(PlayerGravity.y, -10f, 10f);
 
             if (IsGrounded)
                 edg = false;

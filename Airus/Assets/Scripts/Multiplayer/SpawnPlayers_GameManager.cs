@@ -42,10 +42,12 @@ namespace Player.System.Multiplayer
         #region General Methods
         void SpawnPlayers()
         {
-            var Player = PhotonNetwork.Instantiate(PlayerPrefab.name, SpawnPoint.transform.position, Quaternion.identity);
+            GameObject Player = (GameObject)PhotonNetwork.Instantiate(PlayerPrefab.name, SpawnPoint.transform.position, Quaternion.identity);
 
             Player.GetComponent<Player_Movement>().enabled = true;
             Player.GetComponent<Player_Hud>().enabled = true;
+            Player.layer = 6;
+
             CameraSystem.SetCameraTarget(Player.transform);
         }
         #endregion
