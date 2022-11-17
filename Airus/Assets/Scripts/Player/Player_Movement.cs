@@ -58,11 +58,11 @@ namespace Player.System.Movement
         {
             mAnimator = GetComponent<Animator>();
             mCharacterController = GetComponent<CharacterController>();
-            mPhotonView = GetComponent<PhotonView>();
         }
 
         void Start() 
         {
+            mPhotonView = GetComponent<PhotonView>();
             mCamera = Camera.main.GetComponent<Camera>().transform;
             DesiredDirectionTransform = new GameObject("DesiredDirectionTransform").transform;
         }

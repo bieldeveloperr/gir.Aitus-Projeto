@@ -78,27 +78,21 @@ namespace Player.System.Hud
             else
             {
                 IsHunger = false;
-                CurrentHunger -= 2f * Time.deltaTime;
+                CurrentHunger -= Time.deltaTime;
             }
 
             if (IsHunger)
-                CurrentLife -= 2f * Time.deltaTime;
+                CurrentLife -= Time.deltaTime;
 
             if (CurrentLife <= 0)
                 IsDeath = true;
             else
                 IsDeath = false;
 
-            if (IsDeath)
-            {
-                Player_Movement._CanMove = false;
-                Player_Movement.mAnimator.enabled = false;
-            }
-            else
-            {
-                Player_Movement._CanMove = true;
-                Player_Movement.mAnimator.enabled = true;
-            }
+            // if (IsDeath)
+            //     Player_Movement._CanMove = false;
+            // else
+            //     Player_Movement._CanMove = true;
         }
         #endregion
     }

@@ -22,6 +22,6 @@ public class HeadLookAtDirection : MonoBehaviour
             anim = GetComponent<Animator>();
 
         anim.SetLookAtWeight(1,SpineHeight, HeadWeight);
-        anim.SetLookAtPosition(DirectionReference.position + DirectionReference.forward * 50);
+        anim.SetLookAtPosition(DirectionReference.position);
     }
 }
