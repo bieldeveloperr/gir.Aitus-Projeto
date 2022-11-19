@@ -45,6 +45,7 @@ namespace Player.System.Multiplayer
             GameObject Player = (GameObject)PhotonNetwork.Instantiate(PlayerPrefab.name, SpawnPoint.transform.position, Quaternion.identity);
 
             Player.GetComponent<Player_Movement>().enabled = true;
+            Player.GetComponent<CharacterController>().enabled = true;
             Player.GetComponent<Player_Hud>().enabled = true;
             Player.layer = 6;
 

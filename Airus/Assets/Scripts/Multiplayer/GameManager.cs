@@ -31,12 +31,20 @@ namespace Player.System.Multiplayer
         {
             base.OnDisconnected(cause);
         }
+
+        float current = 0;
+        int avgFrameRate;
+        private void Update() 
+        {
+            current = Time.frameCount / Time.time;
+            avgFrameRate = (int)current;
+        }
         #endregion
 
         void OnGUI() 
         {
             var InfoText = "Informações do Servidor:\n";
-            InfoText += string.Format("Players: {0}\n Ping {1}", PhotonNetwork.PlayerList.Length, PhotonNetwork.GetPing());
+            InfoText += string.Format("Players: {0}\nPing {1}\nFPS: {2}", PhotonNetwork.PlayerList.Length, PhotonNetwork.GetPing(), avgFrameRate);
 
             GUILayout.BeginVertical("box");
             GUILayout.Label(InfoText);

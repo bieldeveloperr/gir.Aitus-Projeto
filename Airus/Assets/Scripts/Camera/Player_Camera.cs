@@ -94,7 +94,7 @@ namespace Player.System.CameraMovement
             transform.position = Target.transform.position + Target.transform.up * Height + transform.right * Right - transform.forward * CameraDistance;
 
             if (CameraCollision())
-                transform.position = hit.point + transform.forward * 0.13f;
+                transform.position = hit.point + transform.forward * 0.26f;
         }
 
         RaycastHit hit;

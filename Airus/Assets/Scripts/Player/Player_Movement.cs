@@ -18,14 +18,17 @@ namespace Player.System.Movement
         PhotonView mPhotonView;
         Transform mCamera;
         Transform DesiredDirectionTransform;
+        RaycastHit SlopeHit;
 
         [Header("Movement Settings")]
         [SerializeField] float Speed = 3.5f;
         [SerializeField] float JumpForce = 1f;
         [Space]
-        [SerializeField] Vector2 m_wallCheck = new Vector2(0.1f, 0.2f);
         [SerializeField] float MinVelocityDistance = 0.35f;
         [SerializeField] float WaitTimeForJump = 0.35f;
+        [Space]
+        [SerializeField] Vector2 m_wallCheck = new Vector2(0.45f, -0.05f);
+	    [SerializeField] Vector3 m_groundCheck = new Vector3(0.5f, 0.8f, 0f);
         [Space]
         [SerializeField] LayerMask GroundLayers;
         [Space]
@@ -33,7 +36,8 @@ namespace Player.System.Movement
         bool edg;
         private float SpeedMultiply = 0f;
 
-        float Gravity = -9.81f;
+        float SlipSpeed;
+        float Gravity = -9.81f; 
         float GravityForce;
         Vector3 PlayerGravity;
 
@@ -72,12 +76,13 @@ namespace Player.System.Movement
         {
             PlayerInputs();
             SetAnimations();
+
+            GroundCheck();
         }
 
         void FixedUpdate() 
         {
             PlayerGeneralMovement();
-            GroundCheck();
         }
         #endregion
 
@@ -119,39 +124,30 @@ namespace Player.System.Movement
         void PlayerGeneralMovement()
         {
             #region Player Movement
-            CurrentPlayerMovement = transform.forward * Speed * SpeedMultiply * Time.fixedDeltaTime;
-            if (mPhotonView.IsMine) mCharacterController.Move(CurrentPlayerMovement);
 
-            PlayerGravity.y += Gravity * Time.fixedDeltaTime;
-            if (mPhotonView.IsMine) mCharacterController.Move(PlayerGravity * Time.fixedDeltaTime);
+            if (IsGrounded && PlayerGravity.y < 0) GravityForce = -3.5f;
+            if (PlayerGravity.y > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0) PlayerGravity = Vector3.zero;
+            if (IsGrounded) edg = false;
+            else if(mCharacterController.velocity.y < 0) edg = SlipCheckers(); else edg = false;
 
-            if (IsGrounded && PlayerGravity.y < 0)
-                PlayerGravity.y = -2f;
+            CurrentPlayerMovement = transform.forward * SpeedMultiply * Speed * Time.deltaTime + Vector3.up * GravityForce * Time.fixedDeltaTime;
+            GravityForce += Gravity * Time.fixedDeltaTime;
+            GravityForce = Mathf.Clamp(GravityForce, -10f, 10f);
+            if (mPhotonView.IsMine)mCharacterController.Move(PlayerGravity);
+            PlayerGravity = CurrentPlayerMovement; 
 
-            if (!mCharacterController.isGrounded && PlayerGravity.y < 0 && !edg)
-                PlayerGravity += Vector3.up * (-JumpForce * 0.25f);
-
-            if (PlayerGravity.y > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0)
-                PlayerGravity = Vector3.zero;
-
-            PlayerGravity.y = Mathf.Clamp(PlayerGravity.y, -10f, 10f);
-
-            if (IsGrounded)
-                edg = false;
-            else
-                if(mCharacterController.velocity.y < 0) edg = SlipCheckers(); else edg = false;
-            
+            EnableJump();
 
             if (IsWalking)
             {
-                if (IsRunning)
+                if (IsRunning && !SlopeCheck())
                 {
-                    if (IsGrounded) SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.75f, 3f * Time.deltaTime);
-                    else SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.25f, 3f * Time.deltaTime);
+                    if (IsGrounded) SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.75f, 3f * Time.fixedDeltaTime);
+                    else SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.25f, 3f * Time.fixedDeltaTime);
                 }
                 else
                 {
-                    SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1f, 3f * Time.deltaTime);
+                    SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1f, 3f * Time.fixedDeltaTime);
                 }
                 
                 StartCoroutine(SetPlayerRotaionLow());
@@ -159,10 +155,8 @@ namespace Player.System.Movement
             else
             {
                 PlayerRotationLow = false;
-                SpeedMultiply = Mathf.Lerp(SpeedMultiply, 0f, 6f * Time.deltaTime);
+                SpeedMultiply = Mathf.Lerp(SpeedMultiply, 0f, 6f * Time.fixedDeltaTime);
             }
-
-            EnableJump();
             #endregion
             
             #region Player Rotation
@@ -176,6 +170,17 @@ namespace Player.System.Movement
             StartCoroutine(RotationPlayer());
             transform.eulerAngles = DesiredEulerAngles;
             #endregion
+
+            #region Slope Slip
+            Vector3 SlopeDirection = Vector3.up - SlopeHit.normal * Vector3.Dot(Vector3.up, SlopeHit.normal);
+            if (SlopeCheck() && IsGrounded)
+                HitForSlip(SlopeDirection, -SlipSpeed);
+
+            if (SlopeCheck())
+                SlipSpeed = Mathf.Lerp(SlipSpeed, Speed * 3.5f, 3f * Time.fixedDeltaTime);
+            else
+                SlipSpeed = Mathf.Lerp(SlipSpeed, 0, 3f * Time.fixedDeltaTime);
+            #endregion
         }
 
         void PlayerJump()
@@ -183,17 +188,17 @@ namespace Player.System.Movement
             IsGrounded = false;
             mAnimator.SetTrigger("IsJumping");
             PlayerGravity = Vector3.zero;
-            PlayerGravity.y += Mathf.Sqrt(JumpForce * -2f * Gravity);
+            GravityForce += Mathf.Sqrt(JumpForce * -2.5f * Gravity);
             ActivatedJumpTime = 0;
         }
 
         void GroundCheck()
         {
             RaycastHit hit;
-            IsGrounded = Physics.SphereCast(transform.position + Vector3.up * 1f, 0.225f, -Vector3.up, out hit, 1f, GroundLayers);
+            IsGrounded = Physics.SphereCast(transform.position + transform.up * 1f, 0.2f, -transform.up, out hit, 1f, GroundLayers);
         }
 
-        private bool SlipCheckers()
+        bool SlipCheckers()
         {
             RaycastHit hit;
             Vector3 ray_spwan_pos = transform.position + Vector3.up * m_wallCheck.y; //Y as starting point
@@ -210,21 +215,33 @@ namespace Player.System.Movement
 
             float dis = m_wallCheck.x;
 
-            if(Physics.Raycast (front_ray, out hit, dis, GroundLayers)){
-                HitForSlip(transform.forward);
+            if(Physics.Raycast (front_ray, out hit, dis, GroundLayers) && !SlopeCheck()){
+                HitForSlip(transform.forward, 1.75f);
                 return true;
             }
 
             if(Physics.Raycast (back_ray, out hit, dis, GroundLayers) || Physics.Raycast (right_ray, out hit, dis, GroundLayers) || Physics.Raycast (left_ray, out hit, dis, GroundLayers)){
-                HitForSlip(hit.normal);
+                HitForSlip(hit.normal, 1.75f);
                 return true;
+            }
+            return false;
+	    }
+
+        bool SlopeCheck()
+        {
+            if (Physics.SphereCast(transform.position + Vector3.up * 1f, 0.25f, -Vector3.up, out SlopeHit, 1f, GroundLayers))
+            {
+                float SlopeAngle = Vector3.Angle(SlopeHit.normal, Vector3.up);
+                if (SlopeAngle > mCharacterController.slopeLimit)
+                    return true;
             }
             return false;
         }
 
-        void HitForSlip(Vector3 slip_direction)
+
+        void HitForSlip(Vector3 slip_direction, float slip_speed)
         {
-            mCharacterController.Move(((slip_direction * 1.25f) + Vector3.down) * Time.fixedDeltaTime);
+            mCharacterController.Move(((slip_direction * slip_speed) + Vector3.down) * Time.deltaTime);
         }
 
         void SetAnimations()
@@ -248,7 +265,7 @@ namespace Player.System.Movement
         {
             if (!PlayerRotationLow) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 500f * Time.fixedDeltaTime);
             else if (!IsGrounded) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 60f * Time.fixedDeltaTime);
-            DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 260f * Time.fixedDeltaTime);
+            DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 260f * Time.deltaTime);
             yield return null;
         }
 
@@ -259,11 +276,8 @@ namespace Player.System.Movement
         }
         #endregion
 
-        private void OnDrawGizmos() 
+        void OnDrawGizmos()
         {
-            if (!Application.isPlaying) return;
-
-            Gizmos.color = Color.red;
             Vector3 ray_spwan_pos = transform.position + Vector3.up * m_wallCheck.y;
             
             Vector3 forward = transform.forward * m_wallCheck.x;
@@ -277,7 +291,7 @@ namespace Player.System.Movement
             Gizmos.DrawRay(ray_spwan_pos, back);
             Gizmos.DrawRay(ray_spwan_pos, right);
             Gizmos.DrawRay(ray_spwan_pos, left);
-        }
+	    }
     }
 }
 
