@@ -26,9 +26,10 @@ namespace Player.System.Movement
         [Space]
         [SerializeField] float MinVelocityDistance = 0.35f;
         [SerializeField] float WaitTimeForJump = 0.35f;
+        [SerializeField] Vector2 GroundCheckSlip = new Vector2(0.45f, -0.05f);
         [Space]
-        [SerializeField] Vector2 m_wallCheck = new Vector2(0.45f, -0.05f);
-	    [SerializeField] Vector3 m_groundCheck = new Vector3(0.5f, 0.8f, 0f);
+        [SerializeField] float MaxDistanceGroundCheckPosition;
+        [SerializeField] float MaxRadiusGroundCheck;
         [Space]
         [SerializeField] LayerMask GroundLayers;
         [Space]
@@ -46,6 +47,7 @@ namespace Player.System.Movement
         public bool _CanMove { get{return CanMove;} set{CanMove = value;} }
         [Space]
         [SerializeField] bool IsGrounded;
+        bool IsJumping;
         [SerializeField] bool IsWalking;
         [SerializeField] bool IsRunning;
 
@@ -55,6 +57,7 @@ namespace Player.System.Movement
         float InputX, InputZ;
         Vector3 CurrentPlayerMovement, DesiredDirection;
         Vector3 DesiredEulerAngles;
+        Vector3 SlopeDirection;
         Quaternion DesiredCameraRotation;
         #endregion
 
@@ -113,11 +116,11 @@ namespace Player.System.Movement
             #endregion
 
             #region Inputs
-            IsWalking = Mathf.Abs(InputX) > MinVelocityDistance || Mathf.Abs(InputZ) > MinVelocityDistance;
+            IsWalking = Mathf.Abs(InputX) > MinVelocityDistance && !SlopeCheck() || Mathf.Abs(InputZ) > MinVelocityDistance && !SlopeCheck();
             IsRunning = IsWalking && Input.GetKey(KeyCode.LeftShift);
             JumpPressed = IsGrounded && CanMove && ActivatedJumpTime >= WaitTimeForJump && Input.GetKey(KeyCode.Space);
 
-            if (JumpPressed) PlayerJump();
+            if (JumpPressed && !SlopeCheck()) PlayerJump();
             #endregion
         }
 
@@ -126,7 +129,7 @@ namespace Player.System.Movement
             #region Player Movement
 
             if (IsGrounded && PlayerGravity.y < 0) GravityForce = -3.5f;
-            if (PlayerGravity.y > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0) PlayerGravity = Vector3.zero;
+            if (GravityForce > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0) GravityForce = 0;
             if (IsGrounded) edg = false;
             else if(mCharacterController.velocity.y < 0) edg = SlipCheckers(); else edg = false;
 
@@ -140,7 +143,7 @@ namespace Player.System.Movement
 
             if (IsWalking)
             {
-                if (IsRunning && !SlopeCheck())
+                if (IsRunning)
                 {
                     if (IsGrounded) SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.75f, 3f * Time.fixedDeltaTime);
                     else SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.25f, 3f * Time.fixedDeltaTime);
@@ -172,48 +175,54 @@ namespace Player.System.Movement
             #endregion
 
             #region Slope Slip
-            Vector3 SlopeDirection = Vector3.up - SlopeHit.normal * Vector3.Dot(Vector3.up, SlopeHit.normal);
-            if (SlopeCheck() && IsGrounded)
+            SlopeDirection = Vector3.up - SlopeHit.normal * Vector3.Dot(Vector3.up, SlopeHit.normal);
+            if (SlopeCheck())
+            {
                 HitForSlip(SlopeDirection, -SlipSpeed);
+                if (!IsWalking) DesiredDirectionTransform.rotation = Quaternion.Lerp(DesiredDirectionTransform.rotation, Quaternion.LookRotation(SlopeDirection)
+                     * Quaternion.Euler(0, 180, 0), 5f * Time.deltaTime); 
+            }
 
             if (SlopeCheck())
-                SlipSpeed = Mathf.Lerp(SlipSpeed, Speed * 3.5f, 3f * Time.fixedDeltaTime);
+                SlipSpeed = Mathf.Lerp(SlipSpeed, Speed * 4.5f, 4.5f * Time.deltaTime);
             else
-                SlipSpeed = Mathf.Lerp(SlipSpeed, 0, 3f * Time.fixedDeltaTime);
+                SlipSpeed = Mathf.Lerp(SlipSpeed, 0, 12f * Time.deltaTime);
             #endregion
         }
 
         void PlayerJump()
         {
             IsGrounded = false;
+            IsJumping = true;
             mAnimator.SetTrigger("IsJumping");
             PlayerGravity = Vector3.zero;
             GravityForce += Mathf.Sqrt(JumpForce * -2.5f * Gravity);
             ActivatedJumpTime = 0;
+
+            StartCoroutine(DisableIsJumping());
         }
 
         void GroundCheck()
         {
-            RaycastHit hit;
-            IsGrounded = Physics.SphereCast(transform.position + transform.up * 1f, 0.2f, -transform.up, out hit, 1f, GroundLayers);
+            IsGrounded = Physics.SphereCast(transform.position + transform.up * 1f, MaxRadiusGroundCheck, -transform.up, out var hit, MaxDistanceGroundCheckPosition, GroundLayers);
         }
 
         bool SlipCheckers()
         {
             RaycastHit hit;
-            Vector3 ray_spwan_pos = transform.position + Vector3.up * m_wallCheck.y; //Y as starting point
+            Vector3 ray_spwan_pos = transform.position + Vector3.up * GroundCheckSlip.y; //Y as starting point
 
-            Vector3 forward = transform.forward * m_wallCheck.x; //X as length of rays
-            Vector3 back = -transform.forward * m_wallCheck.x;
-            Vector3 right = transform.right * m_wallCheck.x;
-            Vector3 left = -transform.right * m_wallCheck.x;
+            Vector3 forward = transform.forward * GroundCheckSlip.x; //X as length of rays
+            Vector3 back = -transform.forward * GroundCheckSlip.x;
+            Vector3 right = transform.right * GroundCheckSlip.x;
+            Vector3 left = -transform.right * GroundCheckSlip.x;
 
             Ray front_ray = new Ray(ray_spwan_pos, forward);
             Ray back_ray = new Ray(ray_spwan_pos, back);
             Ray right_ray = new Ray(ray_spwan_pos, right);
             Ray left_ray = new Ray(ray_spwan_pos, left);
 
-            float dis = m_wallCheck.x;
+            float dis = GroundCheckSlip.x;
 
             if(Physics.Raycast (front_ray, out hit, dis, GroundLayers) && !SlopeCheck()){
                 HitForSlip(transform.forward, 1.75f);
@@ -229,19 +238,18 @@ namespace Player.System.Movement
 
         bool SlopeCheck()
         {
-            if (Physics.SphereCast(transform.position + Vector3.up * 1f, 0.25f, -Vector3.up, out SlopeHit, 1f, GroundLayers))
+            if (Physics.SphereCast(transform.position + Vector3.up * 1f, 0.25f, -Vector3.up, out SlopeHit, 1f, GroundLayers) && !IsJumping)
             {
                 float SlopeAngle = Vector3.Angle(SlopeHit.normal, Vector3.up);
-                if (SlopeAngle > mCharacterController.slopeLimit)
+                if (SlopeAngle > mCharacterController.slopeLimit + 10f)
                     return true;
             }
             return false;
         }
 
-
         void HitForSlip(Vector3 slip_direction, float slip_speed)
         {
-            mCharacterController.Move(((slip_direction * slip_speed) + Vector3.down) * Time.deltaTime);
+            mCharacterController.Move(((slip_direction * slip_speed) + Vector3.down) * Time.fixedDeltaTime);
         }
 
         void SetAnimations()
@@ -256,16 +264,22 @@ namespace Player.System.Movement
         float ActivatedJumpTime;
         void EnableJump()
         {
-            if (IsGrounded) ActivatedJumpTime += Time.deltaTime;
+            if (IsGrounded && !SlopeCheck()) ActivatedJumpTime += Time.deltaTime;
             else ActivatedJumpTime = 0;
             ActivatedJumpTime = Math.Clamp(ActivatedJumpTime, 0, WaitTimeForJump + 0.1f);
         }
 
+        IEnumerator DisableIsJumping()
+        {
+            yield return new WaitForSeconds(0.135f);
+            IsJumping = false;
+        }
+
         IEnumerator RotationPlayer()
         {
-            if (!PlayerRotationLow) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 500f * Time.fixedDeltaTime);
-            else if (!IsGrounded) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 60f * Time.fixedDeltaTime);
-            DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 260f * Time.deltaTime);
+            if (!PlayerRotationLow) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 500f * Time.deltaTime);
+            else if (!IsGrounded) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 90f * Time.deltaTime);
+            DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 240f * Time.deltaTime);
             yield return null;
         }
 
@@ -276,14 +290,14 @@ namespace Player.System.Movement
         }
         #endregion
 
-        void OnDrawGizmos()
+        private void OnDrawGizmosSelected()
         {
-            Vector3 ray_spwan_pos = transform.position + Vector3.up * m_wallCheck.y;
+            Vector3 ray_spwan_pos = transform.position + Vector3.up * GroundCheckSlip.y;
             
-            Vector3 forward = transform.forward * m_wallCheck.x;
-            Vector3 back = -transform.forward * m_wallCheck.x;
-            Vector3 right = transform.right * m_wallCheck.x;
-            Vector3 left = -transform.right * m_wallCheck.x;
+            Vector3 forward = transform.forward * GroundCheckSlip.x;
+            Vector3 back = -transform.forward * GroundCheckSlip.x;
+            Vector3 right = transform.right * GroundCheckSlip.x;
+            Vector3 left = -transform.right * GroundCheckSlip.x;
             
         
             Gizmos.color = Color.red;
@@ -291,6 +305,9 @@ namespace Player.System.Movement
             Gizmos.DrawRay(ray_spwan_pos, back);
             Gizmos.DrawRay(ray_spwan_pos, right);
             Gizmos.DrawRay(ray_spwan_pos, left);
+
+            Gizmos.DrawRay(transform.position + transform.up * 1f, -transform.up * MaxDistanceGroundCheckPosition);
+            Gizmos.DrawWireSphere((transform.position + transform.up * 1f) - transform.up * MaxDistanceGroundCheckPosition, MaxRadiusGroundCheck);
 	    }
     }
 }
