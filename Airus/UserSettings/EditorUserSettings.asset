@@ -6,16 +6,40 @@ EditorUserSettings:
   serializedVersion: 4
   m_ConfigSettings:
     RecentlyUsedSceneGuid-0:
-      value: 5455520251020d58550c557648775b14414e1c727a7b7034757f4d60e3b9316d
+      value: 5a530c5353040a0d085d5574487706114315197e742b75352f704861b6b06061
       flags: 0
     RecentlyUsedSceneGuid-1:
-      value: 560650525d0c0a5a085e0a7648710744414e1e7b7a7e2566747c1b66b5b3666c
+      value: 54070052570d0a0d5e5b5b7516770a4846161e7e2f2d73642e284435b6e2653a
       flags: 0
     RecentlyUsedSceneGuid-2:
-      value: 5a5757560101590a5d0c0e24427b5d44434e4c7a7b7a23677f2b4565b7b5353a
+      value: 5a55020253050a035d5d097044775a4547151973787d2768792b456bb5b5633c
       flags: 0
     RecentlyUsedSceneGuid-3:
+      value: 0601030703560a5a580c0a7311770e1643151c78742e7269757f4865e0b73660
+      flags: 0
+    RecentlyUsedSceneGuid-4:
+      value: 02060704555608585c0f5b7113200c444016192f2e7d2068292d4d31b7b33269
+      flags: 0
+    RecentlyUsedSceneGuid-5:
+      value: 5455520251020d58550c557648775b14414e1c727a7b7034757f4d60e3b9316d
+      flags: 0
+    RecentlyUsedSceneGuid-6:
+      value: 5a09510006065e5f5b5d5c7548770b444e4f1d287f2d7262797e1937e7b73161
+      flags: 0
+    RecentlyUsedSceneGuid-7:
+      value: 0652045157035e5d5b0f5e7a16210f4442161b72757072657f7e4936b5b9353e
+      flags: 0
+    RecentlyUsedSceneGuid-8:
+      value: 5a5757560101590a5d0c0e24427b5d44434e4c7a7b7a23677f2b4565b7b5353a
+      flags: 0
+    RecentlyUsedSceneGuid-9:
       value: 510004555501595a095b0972162007444f161a7f7c7b2365757e1867b3b7666e
+      flags: 0
+    UIBuilder.DisableMouseWheelZooming:
+      value: 37434103
+      flags: 0
+    UIBuilder.EditorExtensionModeKey:
+      value: 37434103
       flags: 0
     UnityEditor.ShaderGraph.Blackboard:
       value: 18135939215a0a5004000b0e15254b524c030a3f2964643d120d1230e9e93a3fd6e826abbd2e2d293c4ead313b08042de6030a0afa240c0d020be94c4ba85e435d8715fa32c70d15d11612dacc11fee5d3c5d1fe9ab1be968e93e2ffcbc3e7e2f0b3ffe0e8b0be9af8ffaeffff8e85dd8390e3949c8899daa7

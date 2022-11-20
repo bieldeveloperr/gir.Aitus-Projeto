@@ -164,7 +164,7 @@ namespace Player.System.Movement
             
             #region Player Rotation
             DesiredEulerAngles = transform.eulerAngles;
-            if (IsWalking)
+            if (IsWalking && !SlopeCheck())
             {
                 DesiredDirectionTransform.rotation = Quaternion.LookRotation(DesiredDirection) * DesiredCameraRotation;
                 DesiredDirectionTransform.rotation = Quaternion.FromToRotation(DesiredDirectionTransform.up, transform.up) * DesiredDirectionTransform.rotation;
