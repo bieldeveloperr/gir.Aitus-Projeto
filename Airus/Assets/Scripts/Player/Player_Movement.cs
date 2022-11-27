@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Photon.Pun;
+using Player.System.CameraMovement;
 
 namespace Player.System.Movement
 {
@@ -15,21 +15,19 @@ namespace Player.System.Movement
         public Animator mAnimator { get; set; }
         public CharacterController mCharacterController { get; set; }
         
-        PhotonView mPhotonView;
         Transform mCamera;
         Transform DesiredDirectionTransform;
         RaycastHit SlopeHit;
 
         [Header("Movement Settings")]
         [SerializeField] float Speed = 3.5f;
-        [SerializeField] float JumpForce = 1f;
+        [SerializeField] float JumpForce = 2f;
         [Space]
         [SerializeField] float MinVelocityDistance = 0.35f;
         [SerializeField] float WaitTimeForJump = 0.35f;
         [SerializeField] Vector2 GroundCheckSlip = new Vector2(0.45f, -0.05f);
         [Space]
         [SerializeField] float MaxDistanceGroundCheckPosition;
-        [SerializeField] float MaxRadiusGroundCheck;
         [Space]
         [SerializeField] LayerMask GroundLayers;
         [Space]
@@ -47,13 +45,13 @@ namespace Player.System.Movement
         public bool _CanMove { get{return CanMove;} set{CanMove = value;} }
         [Space]
         [SerializeField] bool IsGrounded;
-        bool IsJumping;
         [SerializeField] bool IsWalking;
         [SerializeField] bool IsRunning;
 
         private bool PlayerRotationLow;
         private bool JumpPressed;
 
+        bool Stop;
         float InputX, InputZ;
         Vector3 CurrentPlayerMovement, DesiredDirection;
         Vector3 DesiredEulerAngles;
@@ -70,9 +68,10 @@ namespace Player.System.Movement
 
         void Start() 
         {
-            mPhotonView = GetComponent<PhotonView>();
             mCamera = Camera.main.GetComponent<Camera>().transform;
             DesiredDirectionTransform = new GameObject("DesiredDirectionTransform").transform;
+
+            mCamera.GetComponent<Player_Camera>().SetCameraTarget(this.transform);
         }
 
         void Update()
@@ -93,7 +92,7 @@ namespace Player.System.Movement
         void PlayerInputs()
         {
             #region Input Axis
-            switch(CanMove && mPhotonView.IsMine)
+            switch(CanMove)
             {
                 case true:
                     InputX = Input.GetAxisRaw("Horizontal");
@@ -116,7 +115,7 @@ namespace Player.System.Movement
             #endregion
 
             #region Inputs
-            IsWalking = Mathf.Abs(InputX) > MinVelocityDistance && !SlopeCheck() || Mathf.Abs(InputZ) > MinVelocityDistance && !SlopeCheck();
+            IsWalking = (Mathf.Abs(InputX) > MinVelocityDistance || Mathf.Abs(InputZ) > MinVelocityDistance) && !SlopeCheck();
             IsRunning = IsWalking && Input.GetKey(KeyCode.LeftShift);
             JumpPressed = IsGrounded && CanMove && ActivatedJumpTime >= WaitTimeForJump && Input.GetKey(KeyCode.Space);
 
@@ -127,7 +126,6 @@ namespace Player.System.Movement
         void PlayerGeneralMovement()
         {
             #region Player Movement
-
             if (IsGrounded && PlayerGravity.y < 0) GravityForce = -3.5f;
             if (GravityForce > 0 && (mCharacterController.collisionFlags & CollisionFlags.Above) != 0) GravityForce = 0;
             if (IsGrounded) edg = false;
@@ -136,13 +134,14 @@ namespace Player.System.Movement
             CurrentPlayerMovement = transform.forward * SpeedMultiply * Speed * Time.deltaTime + Vector3.up * GravityForce * Time.fixedDeltaTime;
             GravityForce += Gravity * Time.fixedDeltaTime;
             GravityForce = Mathf.Clamp(GravityForce, -10f, 10f);
-            if (mPhotonView.IsMine)mCharacterController.Move(PlayerGravity);
+            mCharacterController.Move(PlayerGravity);
             PlayerGravity = CurrentPlayerMovement; 
 
             EnableJump();
 
             if (IsWalking)
             {
+                Stop = true;
                 if (IsRunning)
                 {
                     if (IsGrounded) SpeedMultiply = Mathf.Lerp(SpeedMultiply, 1.75f, 3f * Time.fixedDeltaTime);
@@ -159,11 +158,18 @@ namespace Player.System.Movement
             {
                 PlayerRotationLow = false;
                 SpeedMultiply = Mathf.Lerp(SpeedMultiply, 0f, 6f * Time.fixedDeltaTime);
+
+                if (Stop == true)
+                {
+                    LockMovementForSeconds(0.25f);
+                    Stop = false;
+                }
             }
             #endregion
             
             #region Player Rotation
             DesiredEulerAngles = transform.eulerAngles;
+            if (IsWalking)
             if (IsWalking && !SlopeCheck())
             {
                 DesiredDirectionTransform.rotation = Quaternion.LookRotation(DesiredDirection) * DesiredCameraRotation;
@@ -179,12 +185,15 @@ namespace Player.System.Movement
             if (SlopeCheck())
             {
                 HitForSlip(SlopeDirection, -SlipSpeed);
-                if (!IsWalking) DesiredDirectionTransform.rotation = Quaternion.Lerp(DesiredDirectionTransform.rotation, Quaternion.LookRotation(SlopeDirection)
+                DesiredDirectionTransform.rotation = Quaternion.Lerp(DesiredDirectionTransform.rotation, Quaternion.LookRotation(SlopeDirection)
                      * Quaternion.Euler(0, 180, 0), 5f * Time.deltaTime); 
             }
 
             if (SlopeCheck())
-                SlipSpeed = Mathf.Lerp(SlipSpeed, Speed * 4.5f, 4.5f * Time.deltaTime);
+            {    
+                SlipSpeed = Mathf.Lerp(SlipSpeed, Speed * 4.5f, 8f * Time.deltaTime);
+                LockMovementForSeconds(0.1f);
+            }
             else
                 SlipSpeed = Mathf.Lerp(SlipSpeed, 0, 12f * Time.deltaTime);
             #endregion
@@ -193,18 +202,15 @@ namespace Player.System.Movement
         void PlayerJump()
         {
             IsGrounded = false;
-            IsJumping = true;
             mAnimator.SetTrigger("IsJumping");
             PlayerGravity = Vector3.zero;
             GravityForce += Mathf.Sqrt(JumpForce * -2.5f * Gravity);
             ActivatedJumpTime = 0;
-
-            StartCoroutine(DisableIsJumping());
         }
 
         void GroundCheck()
         {
-            IsGrounded = Physics.SphereCast(transform.position + transform.up * 1f, MaxRadiusGroundCheck, -transform.up, out var hit, MaxDistanceGroundCheckPosition, GroundLayers);
+            IsGrounded = Physics.SphereCast(transform.position + transform.up * 1f, 0.1f, -transform.up, out var hit, MaxDistanceGroundCheckPosition, GroundLayers);
         }
 
         bool SlipCheckers()
@@ -224,7 +230,7 @@ namespace Player.System.Movement
 
             float dis = GroundCheckSlip.x;
 
-            if(Physics.Raycast (front_ray, out hit, dis, GroundLayers) && !SlopeCheck()){
+            if(Physics.Raycast (front_ray, out hit, dis, GroundLayers)){
                 HitForSlip(transform.forward, 1.75f);
                 return true;
             }
@@ -238,7 +244,7 @@ namespace Player.System.Movement
 
         bool SlopeCheck()
         {
-            if (Physics.SphereCast(transform.position + Vector3.up * 1f, 0.25f, -Vector3.up, out SlopeHit, 1f, GroundLayers) && !IsJumping)
+            if (Physics.SphereCast(transform.position + transform.up * 1f, 0.05f, -transform.up, out SlopeHit, 1.25f, GroundLayers) && Physics.SphereCast(transform.position + transform.up * 1f, 0.1f, -transform.up, out var hit, MaxDistanceGroundCheckPosition, GroundLayers))
             {
                 float SlopeAngle = Vector3.Angle(SlopeHit.normal, Vector3.up);
                 if (SlopeAngle > mCharacterController.slopeLimit + 10f)
@@ -255,7 +261,6 @@ namespace Player.System.Movement
         void SetAnimations()
         {
             mAnimator.SetBool("IsGrounded", IsGrounded);
-
             mAnimator.SetFloat("Movement", SpeedMultiply);
         }
         #endregion
@@ -269,17 +274,11 @@ namespace Player.System.Movement
             ActivatedJumpTime = Math.Clamp(ActivatedJumpTime, 0, WaitTimeForJump + 0.1f);
         }
 
-        IEnumerator DisableIsJumping()
-        {
-            yield return new WaitForSeconds(0.135f);
-            IsJumping = false;
-        }
-
         IEnumerator RotationPlayer()
         {
             if (!PlayerRotationLow) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 500f * Time.deltaTime);
             else if (!IsGrounded) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 90f * Time.deltaTime);
-            DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 240f * Time.deltaTime);
+            if (!SlopeCheck()) DesiredEulerAngles.y = Mathf.MoveTowardsAngle(DesiredEulerAngles.y, DesiredDirectionTransform.eulerAngles.y, 240f * Time.deltaTime);
             yield return null;
         }
 
@@ -287,6 +286,22 @@ namespace Player.System.Movement
         {
             yield return new WaitForSeconds(0.25f);
             if (IsWalking) PlayerRotationLow = true;
+        }
+
+        public void LockMovementForSeconds(float Time)
+        {
+            CanMove = false;
+            Invoke("EnableMovement", Time);
+        }
+
+        private void EnableMovement()
+        {
+            CanMove = true;
+            Stop = false;
+            if (IsInvoking("EnableMovement"))
+            {
+                CancelInvoke("EnableMovement");
+            }
         }
         #endregion
 
@@ -307,8 +322,6 @@ namespace Player.System.Movement
             Gizmos.DrawRay(ray_spwan_pos, left);
 
             Gizmos.DrawRay(transform.position + transform.up * 1f, -transform.up * MaxDistanceGroundCheckPosition);
-            Gizmos.DrawWireSphere((transform.position + transform.up * 1f) - transform.up * MaxDistanceGroundCheckPosition, MaxRadiusGroundCheck);
 	    }
     }
 }
-

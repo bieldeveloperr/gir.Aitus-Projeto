@@ -33,7 +33,10 @@ namespace Player.System.CameraMovement
         #endregion
 
         #region Core Methods
-        void Awake() {}
+        void Awake() 
+        {
+            SetConfigs();
+        }
 
         void Start() {}
 
@@ -125,6 +128,11 @@ namespace Player.System.CameraMovement
                     Cursor.visible = true;
                     break;
             }
+        }
+
+        public void SetConfigs()
+        {
+            Sensibility = PlayerPrefs.GetFloat("Sensi_Cam");
         }
         #endregion
     }
