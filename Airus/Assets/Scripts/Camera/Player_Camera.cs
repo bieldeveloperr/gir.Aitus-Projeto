@@ -132,7 +132,7 @@ namespace Player.System.CameraMovement
 
         public void SetConfigs()
         {
-            Sensibility = PlayerPrefs.GetFloat("Sensi_Cam");
+            //Sensibility = PlayerPrefs.GetFloat("Sensi_Cam");
         }
         #endregion
     }
